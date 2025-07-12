@@ -1,0 +1,61 @@
+const OPENAI_API_KEY = 'YOUR_OPENAI_API_KEY';
+const ADMIN_EMAIL = 'your@email.com';
+
+function onFormSubmit(e) {
+  const feedback = e.values[1]; // Adjust index if needed
+  const email = e.values[2];    // If you collect user email
+
+  // Step 1: Use OpenAI API to classify feedback
+  const classification = classifyFeedback(feedback);
+
+  // Step 2: Save classification to the sheet
+  const sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  const lastRow = sheet.getLastRow();
+  sheet.getRange(lastRow, 3).setValue(classification); // Column C for classification
+
+  // Step 3: Send email based on classification
+  if (classification === 'complaint') {
+    sendEmail(email, 'Thank you for your feedback!', 'We’re sorry to hear about your experience. Our team will reach out soon.');
+    sendEmail(ADMIN_EMAIL, 'New Complaint Received', `Complaint: ${feedback}`);
+  } else if (classification === 'compliment') {
+    sendEmail(email, 'Thank you for your feedback!', 'We’re glad you had a great experience! Thank you for your kind words.');
+  }
+}
+
+function classifyFeedback(feedback) {
+  const url = 'https://api.openai.com/v1/chat/completions';
+  const payload = {
+    model: 'gpt-3.5-turbo',
+    messages: [
+      {role: 'system', content: 'Classify the feedback as "complaint" or "compliment". Respond with only one word.'},
+      {role: 'user', content: feedback}
+    ]
+  };
+
+  const options = {
+    method: 'post',
+    contentType: 'application/json',
+    headers: {
+      Authorization: 'Bearer ' + OPENAI_API_KEY
+    },
+    payload: JSON.stringify(payload)
+  };
+
+  const response = UrlFetchApp.fetch(url, options);
+  const result = JSON.parse(response.getContentText());
+  return result.choices[0].message.content.trim().toLowerCase();
+}
+
+function sendEmail(to, subject, body) {
+  if (to) {
+    MailApp.sendEmail(to, subject, body);
+  }
+}
+
+// Trigger setup: Run this function once to set up the trigger
+function createTrigger() {
+  ScriptApp.newTrigger('onFormSubmit')
+    .forSpreadsheet(SpreadsheetApp.getActiveSpreadsheet())
+    .onFormSubmit()
+    .create();
+}
